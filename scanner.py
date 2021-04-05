@@ -8,6 +8,25 @@ socket.setdefaulttimeout(0.25)
 que = queue.Queue()
 results = []
 
+def ip_validation(address: str) -> bool:
+    """Проверка на корректность ip-адреса (v4)"""
+    error_message = f"Некорректный ip-адрес {address}"
+    ok_message = f"Корректный ip-адрес {address}"
+    try:
+        socket.inet_pton(socket.AF_INET, address)
+    except AttributeError:
+        try:
+            socket.inet_aton(address)
+        except socket.error:
+            print(error_message)
+            return False
+        return address.count(".") == 3
+    except socket.error:
+        print(error_message)
+        return False
+
+    print(ok_message)
+    return True
 
 class ProgressBar:
     """Класс визуализации прогресса сканирования"""
@@ -105,8 +124,12 @@ class Scanner:
 
 
 def main():
+    DEFAULT_IP = "127.0.0.1"
     n = 2 ** 16 - 1
-    ip_input = "127.0.0.1"
+    ip_input = input("Введите ip адрес для сканирования -> ")
+    if not ip_validation(ip_input):
+        ip_input = DEFAULT_IP
+        print(f"Выставили дефолтный ip: {DEFAULT_IP}")
     scanner = Scanner(ip_input, n)
 
 
