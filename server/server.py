@@ -3,12 +3,17 @@ import logging
 import random
 import socket
 import threading
+import os
+import sys
 from typing import Dict, Union, Any
 
 import sha3
 
 from data_processing import DataProcessing
-from server_validator import port_validation, check_port_open
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from validator import port_validation, check_port_open
 
 END_MESSAGE_FLAG = "CRLF"
 DEFAULT_PORT = 9090
@@ -46,8 +51,18 @@ class Server:
         self.ip2username_dict = {}
         logging.info(f"Сервер инициализировался, слушает порт {port_number}")
 
+        self.connection_thread = None
+        self.play_command()
+
+        self.input_processing()
+
+    def connection_processing(self):
+        """
+        Метод ожидания подключений клиентов
+        Запускается в отдельном потоке
+        """
         # Ожидаем новое соединение
-        while True:
+        while self.receive_data:
             # Новое соединение
             conn, addr = self.sock.accept()
 
@@ -57,6 +72,67 @@ class Server:
             t = threading.Thread(target=self.router, args=(conn, addr))
             t.daemon = True
             t.start()
+
+    def input_processing(self):
+        """
+        Метод ввода команд для управления сервером
+        1. Отключение сервера (завершение программы);
+        2. Пауза (остановка прослушивание порта);
+        3. Показ логов;
+        4. Очистка логов;
+        5. Очистка файла идентификации.
+        """
+        commands_dict = {
+            "exit": self.exit_command,
+            "pause" : self.stop_command,
+            "stop" : self.stop_command,
+            "play" : self.play_command,
+            "logs" : self.show_logs_command,
+            "clear logs" : self.clear_logs_command,
+            "clear auth" : self.clear_auth_command,
+        }
+
+        while True:
+            command_str = input()
+            if command_str in commands_dict:
+                commands_dict[command_str]()
+            else:
+                print(f"Команда '{command_str}' не найдена\nДоступные команды: {'\n'.join(list(commands_dict.keys()))}")            
+
+    def exit_command(self):
+        """Обработчик завершения работы сервера"""
+        logger.info("Завершаем работу сервера")
+        sys.exit()
+    
+    def stop_command(self):
+        """Команда приостановки"""
+        if self.connection_thread is None:
+            raise ValueError("Нельзя остановить поток подключений, если он не был запущен!")
+        self.receive_data = False
+        logger.info("Приостановили поток получения данных клиентов")
+
+    def clear_auth_command(self):
+        """Отчистка файла авторизации"""
+        self.database.clear()
+        logger.info("Отчистили файл аворизации пользователей")
+
+    #TODO
+    def show_logs_command(self):
+        """Показывает логи"""
+        pass
+
+    #TODO
+    def clear_logs_command(self):
+        """Отчистка логов"""
+        pass
+
+    def play_command(self):
+        # Поток обработки подлючений от клиентов
+        self.receive_data = True
+        t = threading.Thread(target=self.connection_processing)
+        t.daemon = True
+        t.start()
+        self.connection_thread = t
 
     def send_message(self, conn, data: Union[str, Dict[str, Any]], ip: str) -> None:
         """Отправка данных"""

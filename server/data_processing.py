@@ -46,3 +46,8 @@ class DataProcessing:
         """Метод регистрации пользователей"""
         self.data.append({"ip_addr": ip, "password": password, "username": username})
         self.write_collection()
+
+    def clear(self):
+        """Отчищает файл авторизации от всех записей"""
+        self.data = []
+        self.write_collection()

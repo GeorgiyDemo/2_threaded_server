@@ -2,8 +2,13 @@ import json
 import logging
 import socket
 import threading
+import os
+import sys
 
-from cli_validator import port_validation, ip_validation
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from validator import port_validation, ip_validation
 
 DEFAULT_PORT = 9090
 DEFAULT_IP = "127.0.0.1"
@@ -34,7 +39,7 @@ class Client:
         t.start()
 
         # Работа с данными, поступающими от пользователя
-        self.user_processing()
+        self.input_processing()
 
     def new_connection(self):
         """Осуществляет новое соединение по сокету"""
@@ -157,7 +162,7 @@ class Client:
         self.sock.send(message.encode())
         logger.info(f"Отправка данных серверу: '{message}'")
 
-    def user_processing(self):
+    def input_processing(self):
         """Обработка ввода сообщений пользователя"""
 
         while True:
