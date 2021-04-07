@@ -1,4 +1,5 @@
 import json
+from json.decoder import JSONDecodeError
 import logging
 import random
 import socket
@@ -83,13 +84,14 @@ class Server:
         5. Очистка файла идентификации.
         """
         commands_dict = {
-            "exit": self.exit_command,
-            "pause" : self.stop_command,
-            "stop" : self.stop_command,
-            "play" : self.play_command,
+            "exit": self.exit_command, #работает
+            "pause" : self.stop_command,  #работает
+            "stop" : self.stop_command,  #работает
+            "play" : self.play_command,  #работает
+            "start" : self.play_command,  #работает
             "logs" : self.show_logs_command,
             "clear logs" : self.clear_logs_command,
-            "clear auth" : self.clear_auth_command,
+            "clear auth" : self.clear_auth_command, #работает
         }
 
         while True:
@@ -97,7 +99,8 @@ class Server:
             if command_str in commands_dict:
                 commands_dict[command_str]()
             else:
-                print(f"Команда '{command_str}' не найдена\nДоступные команды: {'\n'.join(list(commands_dict.keys()))}")            
+                commands_str = '\n'.join(list(commands_dict.keys()))
+                print(f"Команда '{command_str}' не найдена\nДоступные команды: {commands_str}")            
 
     def exit_command(self):
         """Обработчик завершения работы сервера"""
@@ -198,9 +201,15 @@ class Server:
         """
         Логика регистрации пользователя
         """
-        data = json.loads(conn.recv(1024).decode())
-        newuser_password, newuser_username = hash(data["password"]), data["username"]
         newuser_ip = addr[0]
+        try:
+            data = json.loads(conn.recv(1024).decode())
+        except JSONDecodeError:
+            if newuser_ip in self.reg_list:
+                self.reg_list.remove(newuser_ip)
+            return
+        newuser_password, newuser_username = hash(data["password"]), data["username"]
+
         self.database.user_reg(newuser_ip, newuser_password, newuser_username)
         logger.info(f"Клиент {newuser_ip} -> регистрация прошла успешно")
         data = {"result": True}
@@ -216,7 +225,10 @@ class Server:
         Логика авторизации клиента
         Запрос авторизации у нас априори меньше 1024, так что никакой цикл не запускаем
         """
-        user_password = hash(json.loads(conn.recv(1024).decode())["password"])
+        try:
+            user_password = hash(json.loads(conn.recv(1024).decode())["password"])
+        except JSONDecodeError:
+            return
         client_ip = addr[0]
 
         # Проверяем на существование данных
