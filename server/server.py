@@ -11,6 +11,7 @@ from typing import Dict, Union, Any
 import sha3
 
 from data_processing import DataProcessing
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
@@ -18,17 +19,18 @@ from validator import port_validation, check_port_open
 
 END_MESSAGE_FLAG = "CRLF"
 DEFAULT_PORT = 9090
-
+LOGGER_FILE = "./logs/server.log"
 # Настройки логирования
 logging.basicConfig(
     format="%(asctime)-15s [%(levelname)s] %(funcName)s: %(message)s",
-    handlers=[logging.FileHandler("./logs/server.log")],
+    handlers=[logging.FileHandler(LOGGER_FILE)],
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
+
 
 def hash(password: str) -> str:
     """Хеширование данных"""
@@ -86,16 +88,39 @@ class Server:
         5. Очистка файла идентификации.
         """
         commands_dict = {
-            "exit": {"command" : self.exit_command, "description" : "Выход из программы"},
-            "pause" : {"command" : self.stop_command, "description" : "Приостановить получение новых соединений"},
-            "stop" : {"command" : self.stop_command, "description" : "Приостановить получение новых соединений"},
-            "play" : {"command" : self.play_command, "description" : "Продолжить получение новых соединений"},
-            "start" : {"command" : self.play_command, "description" : "Продолжить получение новых соединений"},
-            "start logs" : {"command" : self.start_logs_command, "description" : "Выводить логи в консоли"},
-            "stop logs" : {"command" : self.stop_logs_command, "description" : "Не выводить логи в консоли"},
-            "clear auth" : {"command" : self.clear_auth_command, "description" : "Отчистка файла для авторизации пользователей"},
-            "clear logs" : {"command" : self.clear_logs_command, "description" : "Отчистка файла логирования"}
-
+            "exit": {"command": self.exit_command, "description": "Выход из программы"},
+            "pause": {
+                "command": self.stop_command,
+                "description": "Приостановить получение новых соединений",
+            },
+            "stop": {
+                "command": self.stop_command,
+                "description": "Приостановить получение новых соединений",
+            },
+            "play": {
+                "command": self.play_command,
+                "description": "Продолжить получение новых соединений",
+            },
+            "start": {
+                "command": self.play_command,
+                "description": "Продолжить получение новых соединений",
+            },
+            "start logs": {
+                "command": self.start_logs_command,
+                "description": "Выводить логи в консоли",
+            },
+            "stop logs": {
+                "command": self.stop_logs_command,
+                "description": "Не выводить логи в консоли",
+            },
+            "clear auth": {
+                "command": self.clear_auth_command,
+                "description": "Отчистка файла для авторизации пользователей",
+            },
+            "clear logs": {
+                "command": self.clear_logs_command,
+                "description": "Отчистка файла логирования",
+            },
         }
 
         while True:
@@ -103,18 +128,22 @@ class Server:
             if command_str in commands_dict:
                 commands_dict[command_str]["command"]()
             else:
-                commands_str = '\n'.join([key+" - "+value["description"] for key, value in commands_dict.items()])
-                print(f"Команда не найдена\nДоступные команды:\n{commands_str}")            
+                commands_str = "\n".join(
+                    [f"{k} - {v['description']}" for k, v in commands_dict.items()]
+                )
+                print(f"Команда не найдена\nДоступные команды:\n{commands_str}")
 
     def exit_command(self):
         """Обработчик завершения работы сервера"""
         logger.info("Завершаем работу сервера")
         sys.exit()
-    
+
     def stop_command(self):
         """Команда приостановки"""
         if self.connection_thread is None:
-            raise ValueError("Нельзя остановить поток подключений, если он не был запущен!")
+            raise ValueError(
+                "Нельзя остановить поток подключений, если он не был запущен!"
+            )
         self.receive_data = False
         logger.info("Приостановили поток получения данных клиентов")
 
@@ -125,19 +154,20 @@ class Server:
 
     def start_logs_command(self):
         """Показывает логи"""
-        print(logger.handlers)
         if stream_handler not in logger.handlers:
             logger.addHandler(stream_handler)
+            logger.info("Возобновили показ логов в консоли")
 
     def stop_logs_command(self):
         """Стопает показ логов в консоли"""
-        print(logger.handlers)
         if stream_handler in logger.handlers:
             logger.removeHandler(stream_handler)
-    #TODO
+            logger.info("Приостановили показ логов в консоли")
+
     def clear_logs_command(self):
         """Отчистка файла логов"""
-        pass
+        open(LOGGER_FILE, "w").close()
+        logger.info("Отчистили файл логов")
 
     def play_command(self):
         # Поток обработки подлючений от клиентов

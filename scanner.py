@@ -8,6 +8,7 @@ socket.setdefaulttimeout(0.25)
 que = queue.Queue()
 results = []
 
+
 def ip_validation(address: str) -> bool:
     """Проверка на корректность ip-адреса (v4)"""
     error_message = f"Некорректный ip-адрес {address}"
@@ -27,6 +28,7 @@ def ip_validation(address: str) -> bool:
 
     print(ok_message)
     return True
+
 
 class ProgressBar:
     """Класс визуализации прогресса сканирования"""
