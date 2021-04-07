@@ -22,11 +22,13 @@ DEFAULT_PORT = 9090
 # Настройки логирования
 logging.basicConfig(
     format="%(asctime)-15s [%(levelname)s] %(funcName)s: %(message)s",
-    handlers=[logging.FileHandler("./logs/server.log"), logging.StreamHandler()],
+    handlers=[logging.FileHandler("./logs/server.log")],
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.INFO)
+logger.addHandler(stream_handler)
 
 def hash(password: str) -> str:
     """Хеширование данных"""
@@ -36,7 +38,7 @@ def hash(password: str) -> str:
 class Server:
     def __init__(self, port_number: int) -> None:
 
-        logging.info(f"Запуск сервера..")
+        logger.info(f"Запуск сервера..")
         self.port_number = port_number
         self.sock = None
         self.database = DataProcessing()
@@ -50,7 +52,7 @@ class Server:
         self.connections_list = []
 
         self.ip2username_dict = {}
-        logging.info(f"Сервер инициализировался, слушает порт {port_number}")
+        logger.info(f"Сервер инициализировался, слушает порт {port_number}")
 
         self.connection_thread = None
         self.play_command()
@@ -69,7 +71,7 @@ class Server:
 
             # Добавляем новое соединение
             self.connections_list.append((conn, addr))
-            logging.info(f"Новое соединение от {addr[0]}")
+            logger.info(f"Новое соединение от {addr[0]}")
             t = threading.Thread(target=self.router, args=(conn, addr))
             t.daemon = True
             t.start()
@@ -84,23 +86,25 @@ class Server:
         5. Очистка файла идентификации.
         """
         commands_dict = {
-            "exit": self.exit_command, #работает
-            "pause" : self.stop_command,  #работает
-            "stop" : self.stop_command,  #работает
-            "play" : self.play_command,  #работает
-            "start" : self.play_command,  #работает
-            "logs" : self.show_logs_command,
-            "clear logs" : self.clear_logs_command,
-            "clear auth" : self.clear_auth_command, #работает
+            "exit": {"command" : self.exit_command, "description" : "Выход из программы"},
+            "pause" : {"command" : self.stop_command, "description" : "Приостановить получение новых соединений"},
+            "stop" : {"command" : self.stop_command, "description" : "Приостановить получение новых соединений"},
+            "play" : {"command" : self.play_command, "description" : "Продолжить получение новых соединений"},
+            "start" : {"command" : self.play_command, "description" : "Продолжить получение новых соединений"},
+            "start logs" : {"command" : self.start_logs_command, "description" : "Выводить логи в консоли"},
+            "stop logs" : {"command" : self.stop_logs_command, "description" : "Не выводить логи в консоли"},
+            "clear auth" : {"command" : self.clear_auth_command, "description" : "Отчистка файла для авторизации пользователей"},
+            "clear logs" : {"command" : self.clear_logs_command, "description" : "Отчистка файла логирования"}
+
         }
 
         while True:
             command_str = input()
             if command_str in commands_dict:
-                commands_dict[command_str]()
+                commands_dict[command_str]["command"]()
             else:
-                commands_str = '\n'.join(list(commands_dict.keys()))
-                print(f"Команда '{command_str}' не найдена\nДоступные команды: {commands_str}")            
+                commands_str = '\n'.join([key+" - "+value["description"] for key, value in commands_dict.items()])
+                print(f"Команда не найдена\nДоступные команды:\n{commands_str}")            
 
     def exit_command(self):
         """Обработчик завершения работы сервера"""
@@ -119,14 +123,20 @@ class Server:
         self.database.clear()
         logger.info("Отчистили файл аворизации пользователей")
 
-    #TODO
-    def show_logs_command(self):
+    def start_logs_command(self):
         """Показывает логи"""
-        pass
+        print(logger.handlers)
+        if stream_handler not in logger.handlers:
+            logger.addHandler(stream_handler)
 
+    def stop_logs_command(self):
+        """Стопает показ логов в консоли"""
+        print(logger.handlers)
+        if stream_handler in logger.handlers:
+            logger.removeHandler(stream_handler)
     #TODO
     def clear_logs_command(self):
-        """Отчистка логов"""
+        """Отчистка файла логов"""
         pass
 
     def play_command(self):
@@ -145,7 +155,7 @@ class Server:
 
         data = data.encode()
         conn.send(data)
-        logging.info(f"Сообщение {data_text} было отправлено клиенту {ip}")
+        logger.info(f"Сообщение {data_text} было отправлено клиенту {ip}")
 
     def socket_init(self):
         """Инициализация сокета"""
@@ -169,7 +179,7 @@ class Server:
             if END_MESSAGE_FLAG in data:
 
                 username = self.ip2username_dict[client_ip]
-                logging.info(
+                logger.info(
                     f"Получили сообщение {data} от клиента {client_ip} ({username})"
                 )
                 data = {"username": username, "text": data}
@@ -215,7 +225,7 @@ class Server:
         data = {"result": True}
         if newuser_ip in self.reg_list:
             self.reg_list.remove(newuser_ip)
-            logging.info(f"Удалили клиента {newuser_ip} из списка регистрации")
+            logger.info(f"Удалили клиента {newuser_ip} из списка регистрации")
 
         self.send_message(conn, data, newuser_ip)
         logger.info(f"Клиент {newuser_ip}. Отправили данные о результате регистрации")
@@ -241,7 +251,7 @@ class Server:
             if client_ip not in self.authenticated_list:
                 self.authenticated_list.append(client_ip)
                 self.ip2username_dict[client_ip] = username
-                logging.info(f"Добавили клиента {client_ip} в список авторизации")
+                logger.info(f"Добавили клиента {client_ip} в список авторизации")
         # Если авторизация не удалась, но пользователь с таким ip существует
         elif auth_result == 0:
             logger.info(f"Клиент {client_ip} -> авторизация не удалась")
@@ -254,7 +264,7 @@ class Server:
             data = {"result": False, "description": "registration required"}
             if client_ip not in self.reg_list:
                 self.reg_list.append(client_ip)
-                logging.info(f"Добавили клиента {client_ip} в список регистрации")
+                logger.info(f"Добавили клиента {client_ip} в список регистрации")
 
         self.send_message(conn, data, client_ip)
         logger.info(f"Клиент {client_ip}. Отправили данные о результате авторизации")
@@ -282,17 +292,17 @@ class Server:
         else:
             self.message_logic(conn, client_ip)
 
-        logging.info(f"Отключение клиента {client_ip}")
+        logger.info(f"Отключение клиента {client_ip}")
         self.connections_list.remove((conn, addr))
         # Если клиент был в списке авторизации - удаляем его
         if client_ip in self.authenticated_list:
             self.authenticated_list.remove(client_ip)
             print("Список соединений:")
             print(self.connections_list)
-            logging.info(f"Удалили клиента {client_ip} из списка авторизации")
+            logger.info(f"Удалили клиента {client_ip} из списка авторизации")
 
     def __del__(self):
-        logging.info(f"Остановка сервера")
+        logger.info(f"Остановка сервера")
 
 
 def main():
